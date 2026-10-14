@@ -7,12 +7,12 @@ from sqlalchemy import desc, func, cast, Date
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.models import Audit, Agent
+from app.core.security import get_current_user
+from app.models.models import Audit, Agent, User
 
 router = APIRouter(prefix="/api/v1/audits", tags=["Auditorías y Reportes"])
 
 
-# Esquema para listado general de auditorías
 class AuditItemResponse(BaseModel):
     id: str
     uniqueid: str
@@ -31,7 +31,6 @@ class AuditItemResponse(BaseModel):
         from_attributes = True
 
 
-# Esquema para el detalle completo de una auditoría individual
 class AuditDetailResponse(AuditItemResponse):
     company_id: str
     queue: Optional[str]
@@ -39,7 +38,6 @@ class AuditDetailResponse(AuditItemResponse):
     analysis_result: Optional[Dict[str, Any]]
 
 
-# Esquemas para las métricas del dashboard
 class AgentMetric(BaseModel):
     agent_name: str
     agent_extension: Optional[str]
@@ -69,18 +67,27 @@ class DashboardMetricsResponse(BaseModel):
 
 
 @router.get("/metrics/dashboard", response_model=DashboardMetricsResponse)
-def get_dashboard_metrics(db: Session = Depends(get_db)):
+def get_dashboard_metrics(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     """
-    Retorna métricas consolidadas, KPIs de calidad y estadísticas por asesor/programa.
+    Retorna métricas consolidadas aisladas por la empresa del usuario activo.
     """
-    total_audits = db.query(func.count(Audit.id)).scalar() or 0
+    c_id = current_user.company_id
+
+    total_audits = (
+        db.query(func.count(Audit.id)).filter(Audit.company_id == c_id).scalar() or 0
+    )
     completed_audits = (
-        db.query(func.count(Audit.id)).filter(Audit.status == "completed").scalar() or 0
+        db.query(func.count(Audit.id))
+        .filter(Audit.company_id == c_id, Audit.status == "completed")
+        .scalar()
+        or 0
     )
 
     promedios = (
         db.query(func.avg(Audit.overall_score), func.avg(Audit.empathy_score))
-        .filter(Audit.status == "completed")
+        .filter(Audit.company_id == c_id, Audit.status == "completed")
         .first()
     )
 
@@ -97,7 +104,11 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
 
     cumplen_guion = (
         db.query(func.count(Audit.id))
-        .filter(Audit.status == "completed", Audit.script_compliance == True)
+        .filter(
+            Audit.company_id == c_id,
+            Audit.status == "completed",
+            Audit.script_compliance == True,
+        )
         .scalar()
         or 0
     )
@@ -110,7 +121,11 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
 
     programas_raw = (
         db.query(Audit.detected_program, func.count(Audit.id).label("total"))
-        .filter(Audit.detected_program.isnot(None), Audit.detected_program != "")
+        .filter(
+            Audit.company_id == c_id,
+            Audit.detected_program.isnot(None),
+            Audit.detected_program != "",
+        )
         .group_by(Audit.detected_program)
         .order_by(desc("total"))
         .limit(5)
@@ -128,7 +143,8 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
             func.count(Audit.id).label("total_llamadas"),
             func.avg(Audit.overall_score).label("promedio_nota"),
         )
-        .outerjoin(Audit, Agent.id == Audit.agent_id)
+        .outerjoin(Audit, (Agent.id == Audit.agent_id) & (Audit.company_id == c_id))
+        .filter(Agent.company_id == c_id)
         .group_by(Agent.id, Agent.name, Agent.extension)
         .all()
     )
@@ -154,62 +170,23 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
     )
 
 
-@router.get("/metrics/timeline", response_model=List[TimelinePoint])
-def get_quality_timeline(
-    start_date: Optional[date] = Query(None, description="Fecha inicial (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="Fecha final (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
-):
-    """
-    Retorna la tendencia histórica de calificaciones y volumen de llamadas agrupado por día.
-    """
-    date_col = cast(Audit.call_date, Date)
-
-    query = db.query(
-        date_col.label("day"),
-        func.count(Audit.id).label("total_calls"),
-        func.avg(Audit.overall_score).label("avg_score"),
-    )
-
-    if start_date:
-        query = query.filter(date_col >= start_date)
-    if end_date:
-        query = query.filter(date_col <= end_date)
-
-    points = query.group_by(date_col).order_by(date_col.asc()).all()
-
-    return [
-        TimelinePoint(
-            date=row[0],
-            total_calls=row[1],
-            average_score=round(float(row[2]), 2) if row[2] is not None else None,
-        )
-        for row in points
-    ]
-
-
 @router.get("", response_model=List[AuditItemResponse])
 def get_audits(
-    agent_id: Optional[str] = Query(None, description="Filtrar por UUID de asesor"),
-    detected_program: Optional[str] = Query(
-        None, description="Filtrar por programa detectado"
-    ),
-    min_score: Optional[float] = Query(
-        None, description="Nota global mínima (1.0 a 10.0)"
-    ),
-    max_score: Optional[float] = Query(
-        None, description="Nota global máxima (1.0 a 10.0)"
-    ),
-    limit: int = Query(
-        50, ge=1, le=100, description="Cantidad de registros a devolver"
-    ),
-    offset: int = Query(0, ge=0, description="Desplazamiento para paginación"),
+    agent_id: Optional[str] = Query(None),
+    detected_program: Optional[str] = Query(None),
+    min_score: Optional[float] = Query(None),
+    max_score: Optional[float] = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """
-    Retorna la lista de auditorías con soporte de filtros y paginación.
-    """
-    query = db.query(Audit).join(Agent, Audit.agent_id == Agent.id, isouter=True)
+    c_id = current_user.company_id
+    query = (
+        db.query(Audit)
+        .join(Agent, Audit.agent_id == Agent.id, isouter=True)
+        .filter(Audit.company_id == c_id)
+    )
 
     if agent_id:
         query = query.filter(Audit.agent_id == agent_id)
@@ -222,38 +199,41 @@ def get_audits(
 
     auditorias = query.order_by(desc(Audit.call_date)).offset(offset).limit(limit).all()
 
-    resultado = []
-    for a in auditorias:
-        resultado.append(
-            AuditItemResponse(
-                id=str(a.id),
-                uniqueid=a.uniqueid,
-                call_date=a.call_date,
-                duration_seconds=a.duration_seconds or 0,
-                customer_phone=a.customer_phone,
-                agent_name=a.agent.name if a.agent else "Sin asignar",
-                agent_extension=a.agent.extension if a.agent else None,
-                status=a.status,
-                overall_score=a.overall_score,
-                empathy_score=a.empathy_score,
-                script_compliance=a.script_compliance,
-                detected_program=a.detected_program,
-            )
+    return [
+        AuditItemResponse(
+            id=str(a.id),
+            uniqueid=a.uniqueid,
+            call_date=a.call_date,
+            duration_seconds=a.duration_seconds or 0,
+            customer_phone=a.customer_phone,
+            agent_name=a.agent.name if a.agent else "Sin asignar",
+            agent_extension=a.agent.extension if a.agent else None,
+            status=a.status,
+            overall_score=a.overall_score,
+            empathy_score=a.empathy_score,
+            script_compliance=a.script_compliance,
+            detected_program=a.detected_program,
         )
-
-    return resultado
+        for a in auditorias
+    ]
 
 
 @router.get("/{audit_id}", response_model=AuditDetailResponse)
-def get_audit_detail(audit_id: str, db: Session = Depends(get_db)):
-    """
-    Retorna el detalle completo y análisis profundo de una auditoría específica.
-    """
-    audit = db.query(Audit).filter(Audit.id == audit_id).first()
+def get_audit_detail(
+    audit_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    audit = (
+        db.query(Audit)
+        .filter(Audit.id == audit_id, Audit.company_id == current_user.company_id)
+        .first()
+    )
 
     if not audit:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Auditoría no encontrada"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Auditoría no encontrada o no pertenece a su empresa",
         )
 
     return AuditDetailResponse(

@@ -45,3 +45,6 @@ pnpm-debug.log*
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+#Otros archivos
+kuali-api/*.py
