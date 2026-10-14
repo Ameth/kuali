@@ -1,3 +1,4 @@
+# app/api/pbx.py
 import os
 import shutil
 from datetime import datetime
@@ -126,7 +127,7 @@ async def upload_call(
     else:
         estado_final = "failed"
 
-    # 8. Guardar en base de datos
+    # 8. Guardar en base de datos con audio_path corregido
     nueva_auditoria = Audit(
         company_id=company_id,
         agent_id=agent.id if agent else None,
@@ -135,7 +136,7 @@ async def upload_call(
         customer_phone=customer_phone,
         call_date=parsed_date,
         duration_seconds=duracion_real,
-        audio_url=None,
+        audio_path=audio.filename,  # <--- Corrección aquí (audio_path en vez de audio_url)
         transcription=texto_transcrito,
         analysis_result=analisis_json,
         overall_score=overall_score,
@@ -151,13 +152,13 @@ async def upload_call(
 
     return {
         "status": "success",
-        "message": "Llamada procesada y transcrita exitosamente",
+        "message": "Llamada procesada y evaluada por Kuali exitosamente",
         "audit_id": str(nueva_auditoria.id),
         "agent": agent.name if agent else "No asignado",
+        "score": overall_score,
         "transcription_preview": (
             texto_transcrito[:150] + "..."
             if len(texto_transcrito) > 150
             else texto_transcrito
         ),
-        "next_step": "Listo para evaluación con LLM",
     }
