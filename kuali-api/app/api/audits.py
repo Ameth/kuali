@@ -3,8 +3,8 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func, cast, Date
-from pydantic import BaseModel
+from sqlalchemy import desc, func, cast, Date, or_
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -64,6 +64,14 @@ class DashboardMetricsResponse(BaseModel):
     script_compliance_rate: Optional[float]
     top_programs: List[ProgramMetric]
     agents_summary: List[AgentMetric]
+
+
+class PaginatedAuditsResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    items: List[AuditItemResponse]
 
 
 @router.get("/metrics/dashboard", response_model=DashboardMetricsResponse)
@@ -170,14 +178,17 @@ def get_dashboard_metrics(
     )
 
 
-@router.get("", response_model=List[AuditItemResponse])
+@router.get("", response_model=PaginatedAuditsResponse)
 def get_audits(
     agent_id: Optional[str] = Query(None),
-    detected_program: Optional[str] = Query(None),
+    detected_program: Optional[str] = Query(None),  # o search_query
+    search: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     min_score: Optional[float] = Query(None),
     max_score: Optional[float] = Query(None),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -190,16 +201,44 @@ def get_audits(
 
     if agent_id:
         query = query.filter(Audit.agent_id == agent_id)
-    if detected_program:
-        query = query.filter(Audit.detected_program.ilike(f"%{detected_program}%"))
+
+    # Búsqueda combinada: programa o teléfono del cliente
+    filtro_texto = search or detected_program
+    if filtro_texto:
+        query = query.filter(
+            or_(
+                Audit.detected_program.ilike(f"%{filtro_texto}%"),
+                Audit.customer_phone.ilike(f"%{filtro_texto}%"),
+            )
+        )
+
     if min_score is not None:
         query = query.filter(Audit.overall_score >= min_score)
     if max_score is not None:
         query = query.filter(Audit.overall_score <= max_score)
 
+    # Filtros de fecha
+    if start_date:
+        try:
+            s_date = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.filter(Audit.call_date >= s_date)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            e_date = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+            query = query.filter(Audit.call_date <= e_date)
+        except ValueError:
+            pass
+
+    total = query.count()
+    offset = (page - 1) * limit
+    total_pages = (total + limit - 1) // limit if total > 0 else 1
+
     auditorias = query.order_by(desc(Audit.call_date)).offset(offset).limit(limit).all()
 
-    return [
+    items = [
         AuditItemResponse(
             id=str(a.id),
             uniqueid=a.uniqueid,
@@ -216,6 +255,10 @@ def get_audits(
         )
         for a in auditorias
     ]
+
+    return PaginatedAuditsResponse(
+        total=total, page=page, limit=limit, total_pages=total_pages, items=items
+    )
 
 
 @router.get("/{audit_id}", response_model=AuditDetailResponse)

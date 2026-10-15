@@ -22,6 +22,7 @@ class Company(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(100), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relaciones
@@ -42,6 +43,7 @@ class PBXIntegration(Base):
     )
     name = Column(String(100), default="Asterisk PBX")
     api_key = Column(String(255), unique=True, nullable=False, index=True)
+    pbx_type = Column(String(50), default="issabel", nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -120,3 +122,38 @@ class Audit(Base):
 
     company = relationship("Company", back_populates="audits")
     agent = relationship("Agent", back_populates="audits")
+
+
+# app/models/models.py (Añadir al final)
+
+
+class SystemConfig(Base):
+    __tablename__ = "system_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(
+        String(100), unique=True, nullable=False
+    )  # ej: "gemini_model", "gemini_prompt", "temperature"
+    value = Column(Text, nullable=False)
+    description = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CompanyAIConfig(Base):
+    __tablename__ = "company_ai_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    gemini_model = Column(String(100), default="gemini-1.5-flash", nullable=False)
+    temperature = Column(Float, default=0.2, nullable=False)
+    audit_prompt = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String(100), nullable=True)
+
+    company = relationship("Company", backref="ai_config")

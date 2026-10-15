@@ -104,7 +104,7 @@ async def upload_call(
             os.remove(file_path)
             print(f"[x] Archivo temporal eliminado: {file_path}")
 
-    # 7. Evaluar con Gemini si la transcripción fue exitosa
+    # 7. Evaluar con Gemini usando la configuración de la empresa
     analisis_json = None
     overall_score = None
     empathy_score = None
@@ -114,7 +114,12 @@ async def upload_call(
     if texto_transcrito and texto_transcrito != "Error en transcripción":
         try:
             nombre_agente = agent.name if agent else "Asesor"
-            analisis_json = await evaluar_auditoria(texto_transcrito, nombre_agente)
+            analisis_json = await evaluar_auditoria(
+                transcripcion=texto_transcrito,
+                nombre_asesor=nombre_agente,
+                company_id=company_id,
+                db=db,
+            )
 
             overall_score = analisis_json.get("overall_score")
             empathy_score = analisis_json.get("empathy_score")
@@ -136,7 +141,7 @@ async def upload_call(
         customer_phone=customer_phone,
         call_date=parsed_date,
         duration_seconds=duracion_real,
-        audio_path=audio.filename,  # <--- Corrección aquí (audio_path en vez de audio_url)
+        audio_path=audio.filename,
         transcription=texto_transcrito,
         analysis_result=analisis_json,
         overall_score=overall_score,

@@ -7,8 +7,9 @@ from app.api.auth import router as auth_router
 from app.api.pbx import router as pbx_router
 from app.api.audits import router as audits_router
 from app.api.agents import router as agents_router
+from app.api.admin import router as admin_router
 
-__version__ = "1.0.0"
+__version__ = "1.2.0"
 
 app = FastAPI(
     title="Kuali API",
@@ -36,3 +37,4 @@ app.include_router(auth_router)
 app.include_router(pbx_router)
 app.include_router(audits_router)
 app.include_router(agents_router)
+app.include_router(admin_router)

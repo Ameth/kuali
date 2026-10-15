@@ -65,15 +65,17 @@ export const apiService = {
     return response.data
   },
 
-  // Listado de auditorías con filtros
+  // Listado de auditorías con paginación y filtros de fecha
   getAudits: async (filters = {}) => {
     const params = {
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
+      page: filters.page || 1,
+      limit: filters.limit || 10,
     }
     if (filters.agent_id) params.agent_id = filters.agent_id
     if (filters.detected_program)
       params.detected_program = filters.detected_program
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
     if (filters.min_score !== undefined && filters.min_score !== '')
       params.min_score = filters.min_score
     if (filters.max_score !== undefined && filters.max_score !== '')
@@ -83,8 +85,13 @@ export const apiService = {
     return response.data
   },
 
-  // Detalle profundo y transcripción
+  // Detalle profundo y transcripción (mantenemos ambos nombres para compatibilidad total)
   getAuditDetail: async (auditId) => {
+    const response = await apiClient.get(`/audits/${auditId}`)
+    return response.data
+  },
+
+  getAudit: async (auditId) => {
     const response = await apiClient.get(`/audits/${auditId}`)
     return response.data
   },
@@ -94,6 +101,94 @@ export const apiService = {
     const response = await apiClient.get('/agents', {
       params: { is_active: isActive },
     })
+    return response.data
+  },
+
+  // Cambiar contraseña del usuario autenticado
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await apiClient.put('/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return response.data
+  },
+
+  // --- Métodos de Super Admin ---
+  getAdminCompanies: async () => {
+    const response = await apiClient.get('/admin/companies')
+    return response.data
+  },
+
+  createCompany: async (name, pbx_type = 'issabel') => {
+    const response = await apiClient.post('/admin/companies', {
+      name,
+      pbx_type,
+    })
+    return response.data
+  },
+
+  getAIConfig: async () => {
+    const response = await apiClient.get('/admin/ai-config')
+    return response.data
+  },
+
+  updateAIConfig: async (configData) => {
+    const response = await apiClient.put('/admin/ai-config', configData)
+    return response.data
+  },
+
+  // Actualizar datos de una empresa
+  updateCompany: async (companyId, updateData) => {
+    const response = await apiClient.put(
+      `/admin/companies/${companyId}`,
+      updateData,
+    )
+    return response.data
+  },
+
+  // Regenerar API Key de la PBX
+  regenerateCompanyKey: async (companyId) => {
+    const response = await apiClient.post(
+      `/admin/companies/${companyId}/regenerate-key`,
+    )
+    return response.data
+  },
+
+  // Obtener usuarios asignados a una empresa
+  getCompanyUsers: async (companyId) => {
+    const response = await apiClient.get(`/admin/companies/${companyId}/users`)
+    return response.data
+  },
+
+  // Crear usuario para una empresa
+  createCompanyUser: async (companyId, userData) => {
+    const response = await apiClient.post(
+      `/admin/companies/${companyId}/users`,
+      userData,
+    )
+    return response.data
+  },
+
+  toggleCompanyStatus: async (companyId) => {
+    const response = await apiClient.put(
+      `/admin/companies/${companyId}/toggle-status`,
+    )
+    return response.data
+  },
+
+  // Configuración de IA por Cliente
+  getCompanyAIConfig: async (companyId) => {
+    const response = await apiClient.get(
+      `/admin/companies/${companyId}/ai-config`,
+    )
+    return response.data
+  },
+
+  updateCompanyAIConfig: async (companyId, configData) => {
+    const response = await apiClient.put(
+      `/admin/companies/${companyId}/ai-config`,
+      configData,
+    )
     return response.data
   },
 }

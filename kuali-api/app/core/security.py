@@ -49,14 +49,41 @@ def get_current_user(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         company_id: str = payload.get("company_id")
-        if user_id is None or company_id is None:
+        if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
     from app.models.models import User
 
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+    # 1. Buscar usuario
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
+
+    # 2. Verificar que el usuario no esté inactivo
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta de usuario se encuentra inactiva.",
+        )
+
+    # 3. Verificar que la empresa asociada no esté inactiva (excepto superadmin)
+    if user.role != "superadmin" and user.company:
+        is_company_active = getattr(user.company, "is_active", True)
+        if not is_company_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El acceso para tu empresa ha sido suspendido. Contacta a un administrador de Kuali.",
+            )
+
     return user
+
+
+def require_superadmin(current_user=Depends(get_current_user)):
+    if current_user.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso restringido: Se requieren privilegios de Super Administrador de Kuali.",
+        )
+    return current_user

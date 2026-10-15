@@ -17,7 +17,7 @@ async def transcribir_audio(file_path: str) -> dict:
 
     url = "https://api.deepgram.com/v1/listen"
     params = {
-        "model": "nova-2",
+        "model": "nova-3",
         "language": "es",
         "smart_format": "true",
         "diarize": "true",

@@ -4,8 +4,8 @@ import { Lock, Mail, ArrowRight, ShieldAlert } from 'lucide-react'
 import { apiService } from '../services/api'
 
 const Login = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('admin@centroinca.com')
-  const [password, setPassword] = useState('Inca2026*')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -92,7 +92,7 @@ const Login = ({ onLoginSuccess }) => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder='usuario@centroinca.com'
+                  placeholder='Ingrese su correo'
                   className='w-full bg-[#0d0e15] border border-slate-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400 transition-colors'
                 />
               </div>
@@ -109,7 +109,7 @@ const Login = ({ onLoginSuccess }) => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder='••••••••'
+                  placeholder='Ingrese su contraseña'
                   className='w-full bg-[#0d0e15] border border-slate-700/80 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan-400 transition-colors'
                 />
               </div>

@@ -3,11 +3,12 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.database import get_db
 from app.core.security import (
     verify_password,
+    get_password_hash,
     create_access_token,
     get_current_user,
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -40,6 +41,11 @@ class UserProfileResponse(BaseModel):
         from_attributes = True
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
@@ -56,11 +62,20 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Validar si el usuario está inactivo
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo en el sistema",
         )
+
+    # Validar si la empresa está inactiva (a menos que sea superadmin)
+    if user.role != "superadmin":
+        if user.company and not getattr(user.company, "is_active", True):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El acceso para esta empresa se encuentra suspendido. Comuníquese con soporte de Kuali.",
+            )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -100,3 +115,33 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
             current_user.company.name if current_user.company else "Sin asignar"
         ),
     )
+
+
+@router.put("/change-password")
+def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Permite al usuario autenticado cambiar su contraseña validando la anterior.
+    """
+    # 1. Validar contraseña actual
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual no es correcta.",
+        )
+
+    # 2. Evitar que reutilice la misma clave
+    if verify_password(data.new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña no puede ser idéntica a la anterior.",
+        )
+
+    # 3. Hashear y actualizar en base de datos
+    current_user.hashed_password = get_password_hash(data.new_password)
+    db.commit()
+
+    return {"status": "success", "message": "Contraseña actualizada exitosamente."}
