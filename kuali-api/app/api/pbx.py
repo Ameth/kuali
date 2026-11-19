@@ -14,7 +14,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.models import Company, PBXIntegration, Agent, Audit
+from app.models.models import Company, PBXIntegration, Agent, Audit, QueueCallEvent
 from app.services.transcription import transcribir_audio
 from app.services.evaluator import evaluar_auditoria
 
@@ -104,7 +104,7 @@ async def upload_call(
             os.remove(file_path)
             print(f"[x] Archivo temporal eliminado: {file_path}")
 
-    # 7. Evaluar con Gemini usando la configuración de la empresa
+    # 7. Evaluar con Gemini si la transcripción fue exitosa
     analisis_json = None
     overall_score = None
     empathy_score = None
@@ -114,17 +114,43 @@ async def upload_call(
     if texto_transcrito and texto_transcrito != "Error en transcripción":
         try:
             nombre_agente = agent.name if agent else "Asesor"
+
+            # Consultar saltos de cola de esta llamada
+            eventos_db = (
+                db.query(QueueCallEvent)
+                .filter(
+                    QueueCallEvent.company_id == company_id,
+                    QueueCallEvent.uniqueid == uniqueid,
+                )
+                .order_by(QueueCallEvent.event_timestamp.asc())
+                .all()
+            )
+
+            saltos_cola = [
+                {
+                    "event_type": e.event_type,
+                    "agent_name": e.agent_name,
+                    "wait_time_seconds": e.wait_time_seconds,
+                    "talk_time_seconds": e.talk_time_seconds,
+                    "ring_duration_ms": e.ring_duration_ms,
+                }
+                for e in eventos_db
+            ]
+
             analisis_json = await evaluar_auditoria(
                 transcripcion=texto_transcrito,
                 nombre_asesor=nombre_agente,
                 company_id=company_id,
                 db=db,
+                saltos_cola=saltos_cola,
             )
 
             overall_score = analisis_json.get("overall_score")
             empathy_score = analisis_json.get("empathy_score")
             script_compliance = analisis_json.get("script_compliance")
-            detected_program = analisis_json.get("detected_program")
+            detected_program = analisis_json.get(
+                "detected_program"
+            ) or analisis_json.get("detected_topic")
             estado_final = "completed"
         except Exception as err:
             print(f"[!] Error al evaluar con Gemini: {err}")

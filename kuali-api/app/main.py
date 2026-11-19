@@ -8,6 +8,7 @@ from app.api.pbx import router as pbx_router
 from app.api.audits import router as audits_router
 from app.api.agents import router as agents_router
 from app.api.admin import router as admin_router
+from app.api.telemetry import router as telemetry_router
 
 __version__ = "1.2.0"
 
@@ -38,3 +39,4 @@ app.include_router(pbx_router)
 app.include_router(audits_router)
 app.include_router(agents_router)
 app.include_router(admin_router)
+app.include_router(telemetry_router)

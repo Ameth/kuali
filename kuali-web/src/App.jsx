@@ -19,6 +19,7 @@ import Login from './components/Login'
 import AnalyticsCharts from './components/AnalyticsCharts'
 import UserProfile from './components/UserProfile'
 import AdminPanel from './components/AdminPanel'
+import QueueMetricsView from './components/QueueMetricsView'
 
 function App() {
   const [session, setSession] = useState(() => {
@@ -197,6 +198,17 @@ function App() {
                 <span>Llamadas auditadas</span>
               </button>
 
+              <button
+                onClick={() => setCurrentView('queues')}
+                className={`cursor-pointer px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  currentView === 'queues'
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-lg shadow-cyan-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                Métricas de Colas
+              </button>
+
               {session.role === 'superadmin' && (
                 <button
                   onClick={() => setCurrentView('admin')}
@@ -313,6 +325,8 @@ function App() {
         {currentView === 'admin' && session.role === 'superadmin' && (
           <AdminPanel />
         )}
+
+        {currentView === 'queues' && <QueueMetricsView />}
       </main>
 
       {/* Modal de Detalle Dinámico */}

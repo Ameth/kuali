@@ -13,12 +13,12 @@ import {
   Calendar,
   Clock,
   Tag,
-  Activity,
   RefreshCw,
   MessageSquare,
   Headphones,
 } from 'lucide-react'
 import { apiService } from '../services/api'
+import CallTimeline from './CallTimeline'
 
 const AuditDetailModal = ({ audit, onClose }) => {
   const [fullAudit, setFullAudit] = useState(audit)
@@ -148,7 +148,7 @@ const AuditDetailModal = ({ audit, onClose }) => {
   const dialogueMessages = parseDialogue(currentData.transcription)
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200'>
+    <div className='fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200'>
       <div className='bg-[#14161f] border border-slate-800 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]'>
         {/* Cabecera */}
         <div className='p-4 sm:p-5 border-b border-slate-800/80 flex items-center justify-between bg-[#10121a]'>
@@ -229,6 +229,9 @@ const AuditDetailModal = ({ audit, onClose }) => {
 
         {/* Contenido Dinámico */}
         <div className='p-5 sm:p-6 overflow-y-auto space-y-5'>
+          {/* 📍 Trazabilidad en cola de la llamada */}
+          <CallTimeline uniqueid={currentData.uniqueid} />
+
           {loading ? (
             <div className='py-16 flex flex-col items-center justify-center gap-3 text-slate-400'>
               <RefreshCw className='w-6 h-6 animate-spin text-cyan-400' />

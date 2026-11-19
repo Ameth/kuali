@@ -191,6 +191,73 @@ export const apiService = {
     )
     return response.data
   },
+
+  getQueueMetrics: async (filters = {}) => {
+    const params = {}
+    if (filters.queue) params.queue = filters.queue
+    if (filters.agent_name) params.agent_name = filters.agent_name
+    if (filters.customer_phone) params.customer_phone = filters.customer_phone
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
+
+    const response = await apiClient.get('/telemetry/metrics', { params })
+    return response.data
+  },
+
+  getCallTrace: async (uniqueid) => {
+    const response = await apiClient.get(`/telemetry/trace/${uniqueid}`)
+    return response.data
+  },
+
+  exportQueueMetricsExcel: async (filters = {}) => {
+    const params = {}
+    if (filters.queue) params.queue = filters.queue
+    if (filters.agent_name) params.agent_name = filters.agent_name
+    if (filters.customer_phone) params.customer_phone = filters.customer_phone
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
+
+    const response = await apiClient.get('/telemetry/export/excel', {
+      params,
+      responseType: 'blob',
+    })
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const today = new Date().toISOString().split('T')[0]
+    link.setAttribute('download', `Kuali_Reporte_Colas_${today}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  getQueueCallsList: async (filters = {}) => {
+    const params = {}
+    if (filters.status_filter) params.status_filter = filters.status_filter
+    if (filters.queue) params.queue = filters.queue
+    if (filters.agent_name) params.agent_name = filters.agent_name
+    if (filters.customer_phone) params.customer_phone = filters.customer_phone
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
+
+    const response = await apiClient.get('/telemetry/calls', { params })
+    return response.data
+  },
+
+  getAgentQueueHistory: async (agentName, filters = {}) => {
+    const params = {}
+    if (filters.queue) params.queue = filters.queue
+    if (filters.start_date) params.start_date = filters.start_date
+    if (filters.end_date) params.end_date = filters.end_date
+
+    const response = await apiClient.get(
+      `/telemetry/agent/${encodeURIComponent(agentName)}/history`,
+      { params },
+    )
+    return response.data
+  },
 }
 
 export default apiService

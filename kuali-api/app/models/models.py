@@ -157,3 +157,39 @@ class CompanyAIConfig(Base):
     updated_by = Column(String(100), nullable=True)
 
     company = relationship("Company", backref="ai_config")
+
+class QueueCall(Base):
+    __tablename__ = "queue_calls"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    uniqueid = Column(String(64), nullable=False, index=True)
+    queue = Column(String(32), nullable=False, index=True)
+    customer_phone = Column(String(32), nullable=True)
+    agent_name = Column(String(120), nullable=True)
+    status = Column(String(20), nullable=False)  # answered, abandoned, timeout
+    wait_time_seconds = Column(Integer, default=0)
+    talk_time_seconds = Column(Integer, default=0)
+    abandon_position = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company")
+
+
+class QueueCallEvent(Base):
+    __tablename__ = "queue_call_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    uniqueid = Column(String(64), nullable=False, index=True)
+    queue = Column(String(32), nullable=False)
+    event_timestamp = Column(DateTime, nullable=False)
+    event_type = Column(String(30), nullable=False)  # ENTERQUEUE, RINGNOANSWER, CONNECT, etc.
+    agent_name = Column(String(120), nullable=True, index=True)
+    ring_duration_ms = Column(Integer, default=0)
+    wait_time_seconds = Column(Integer, default=0)
+    talk_time_seconds = Column(Integer, default=0)
+    details = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company")

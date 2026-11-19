@@ -49,3 +49,7 @@ Thumbs.db
 #Otros archivos
 kuali-api/*.py
 todo.md
+*.py
+*.backup.gz
+queue_log
+*.txt

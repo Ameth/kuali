@@ -58,12 +58,17 @@ const AuditsTable = ({
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A'
     const d = new Date(dateStr)
-    return d.toLocaleString('es-CO', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+
+    let hours = d.getHours()
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    const ampm = hours >= 12 ? 'pm' : 'am'
+    hours = hours % 12 || 12
+    const strHours = String(hours).padStart(2, '0')
+
+    return `${day}/${month}/${year} ${strHours}:${minutes} ${ampm}`
   }
 
   const handleClearFilters = () => {
@@ -251,7 +256,7 @@ const AuditsTable = ({
                     className='hover:bg-slate-800/40 transition-colors cursor-pointer group'
                     onClick={() => handleSelect(a)}
                   >
-                    <td className='py-4 px-4 font-mono text-slate-300 text-xs sm:text-sm'>
+                    <td className="py-4 px-4 font-mono text-slate-300 text-xs sm:text-sm whitespace-nowrap">
                       {formatDate(a.call_date)}
                     </td>
                     <td className='py-4 px-4 font-semibold text-white'>
